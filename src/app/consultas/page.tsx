@@ -21,6 +21,8 @@ import {
 import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
 
+export const dynamic = 'force-dynamic'
+
 export default function ConsultasPage() {
     const [showNovaConsulta, setShowNovaConsulta] = useState(false)
     const [mesAtual, setMesAtual] = useState(new Date())
