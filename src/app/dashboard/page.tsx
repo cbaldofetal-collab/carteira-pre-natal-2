@@ -215,18 +215,6 @@ export default function DashboardPage() {
                                     </p>
                                 </div>
                             </div>
-
-                            <div className="flex items-start space-x-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
-                                <div className="rounded-full bg-primary/20 p-2">
-                                    <Activity className="h-4 w-4 text-primary" />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium">Vacina dTpa</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Aplicar entre 20-36 semanas
-                                    </p>
-                                </div>
-                            </div>
                         </CardContent>
                     </Card>
 
@@ -253,12 +241,6 @@ export default function DashboardPage() {
                                 <Button variant="outline" className="w-full justify-start">
                                     <Calendar className="mr-2 h-4 w-4" />
                                     Consultas
-                                </Button>
-                            </Link>
-                            <Link href="/vacinas">
-                                <Button variant="outline" className="w-full justify-start">
-                                    <Activity className="mr-2 h-4 w-4" />
-                                    Vacinação
                                 </Button>
                             </Link>
                         </CardContent>
