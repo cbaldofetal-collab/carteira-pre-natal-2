@@ -1,26 +1,71 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Heart, Lock, Mail } from "lucide-react"
+import { Heart, Lock, Mail, AlertCircle, Loader2, CheckCircle } from "lucide-react"
+import { supabase } from "@/lib/supabaseClient"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-    const handleSubmit = (e: React.FormEvent) => {
+    useEffect(() => {
+        if (searchParams.get("cadastro") === "sucesso") {
+            setSuccessMessage("Conta criada com sucesso! Faça login para continuar.")
+        }
+    }, [searchParams])
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implementar lógica de autenticação
-        console.log("Login:", { email, password })
+        setLoading(true)
+        setError(null)
+
+        try {
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            })
+
+            if (error) {
+                throw error
+            }
+
+            // Login bem-sucedido
+            router.push("/dashboard")
+            router.refresh() // Atualiza o estado da sessão na aplicação
+        } catch (err: any) {
+            console.error("Erro no login:", err)
+            setError(err.message === "Invalid login credentials"
+                ? "E-mail ou senha incorretos."
+                : "Ocorreu um erro ao fazer login. Tente novamente.")
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const handleGoogleLogin = () => {
-        // TODO: Implementar lógica de autenticação com Google
-        console.log("Login com Google")
+    const handleGoogleLogin = async () => {
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                },
+            })
+            if (error) throw error
+        } catch (error: any) {
+            setError(error.message)
+        }
     }
 
     return (
@@ -43,6 +88,20 @@ export default function LoginPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {successMessage && (
+                            <Alert className="bg-green-50 text-green-900 border-green-200">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                <AlertDescription>{successMessage}</AlertDescription>
+                            </Alert>
+                        )}
+
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+
                         <Button
                             type="button"
                             variant="outline"
@@ -125,8 +184,19 @@ export default function LoginPage() {
                                     Esqueceu a senha?
                                 </Link>
                             </div>
-                            <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                                Entrar
+                            <Button
+                                type="submit"
+                                className="w-full bg-primary hover:bg-primary/90"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Entrando...
+                                    </>
+                                ) : (
+                                    "Entrar"
+                                )}
                             </Button>
                         </form>
                     </CardContent>

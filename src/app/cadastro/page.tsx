@@ -2,13 +2,19 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Heart, Lock, Mail, User, Calendar } from "lucide-react"
+import { Heart, Lock, Mail, User, Calendar, AlertCircle, Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabaseClient"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function CadastroPage() {
+    const router = useRouter()
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [formData, setFormData] = useState({
         nome: "",
         email: "",
@@ -22,17 +28,89 @@ export default function CadastroPage() {
             ...formData,
             [e.target.name]: e.target.value
         })
+        // Limpar erro ao digitar
+        if (error) setError(null)
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const validatePassword = (password: string) => {
+        const hasLetter = /[a-zA-Z]/.test(password)
+        const hasNumber = /[0-9]/.test(password)
+        const minLength = password.length >= 6
+
+        if (!minLength) return "A senha deve ter pelo menos 6 caracteres."
+        if (!hasLetter || !hasNumber) return "A senha deve conter letras e números (alfanumérica)."
+        return null
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implementar lógica de cadastro
-        console.log("Cadastro:", formData)
+        setLoading(true)
+        setError(null)
+
+        // Validações
+        if (formData.senha !== formData.confirmarSenha) {
+            setError("As senhas não coincidem.")
+            setLoading(false)
+            return
+        }
+
+        const passwordError = validatePassword(formData.senha)
+        if (passwordError) {
+            setError(passwordError)
+            setLoading(false)
+            return
+        }
+
+        try {
+            // 1. Criar usuário no Auth
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.senha,
+            })
+
+            if (authError) throw authError
+
+            if (authData.user) {
+                // 2. Criar perfil clínico inicial
+                const { error: profileError } = await supabase
+                    .from('perfil_clinico')
+                    .insert([
+                        {
+                            paciente_id: authData.user.id,
+                            nome: formData.nome,
+                            data_nascimento: formData.dataNascimento
+                        }
+                    ])
+
+                if (profileError) {
+                    console.error("Erro ao criar perfil:", profileError)
+                    // Não vamos bloquear o cadastro se falhar o perfil, mas é bom logar
+                }
+
+                // Sucesso! Redirecionar para login ou dashboard
+                // O Supabase pode exigir confirmação de email dependendo da config
+                router.push("/login?cadastro=sucesso")
+            }
+        } catch (err: any) {
+            console.error("Erro no cadastro:", err)
+            setError(err.message || "Ocorreu um erro ao criar sua conta. Tente novamente.")
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const handleGoogleSignup = () => {
-        // TODO: Implementar lógica de cadastro com Google
-        console.log("Cadastro com Google")
+    const handleGoogleSignup = async () => {
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                },
+            })
+            if (error) throw error
+        } catch (error: any) {
+            setError(error.message)
+        }
     }
 
     return (
@@ -55,6 +133,13 @@ export default function CadastroPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+
                         <Button
                             type="button"
                             variant="outline"
@@ -157,6 +242,9 @@ export default function CadastroPage() {
                                         required
                                     />
                                 </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Mínimo de 6 caracteres, contendo letras e números.
+                                </p>
                             </div>
 
                             <div className="space-y-2">
@@ -195,8 +283,19 @@ export default function CadastroPage() {
                                 </Label>
                             </div>
 
-                            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90">
-                                Criar conta
+                            <Button
+                                type="submit"
+                                className="w-full bg-secondary hover:bg-secondary/90"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Criando conta...
+                                    </>
+                                ) : (
+                                    "Criar conta"
+                                )}
                             </Button>
                         </form>
                     </CardContent>
