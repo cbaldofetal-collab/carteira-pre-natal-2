@@ -1,37 +1,98 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Header } from "@/components/layout/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts'
-import { TrendingUp, Weight, Ruler, Baby, ArrowLeft } from "lucide-react"
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { TrendingUp, Weight, Ruler, Baby, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function GraficosPage() {
-    // Dados mock - Ganho de Peso Materno
-    const dadosPeso = [
-        { semana: 8, peso: 60, pesoIdeal: 60 },
-        { semana: 12, peso: 61.5, pesoIdeal: 61.2 },
-        { semana: 16, peso: 63, pesoIdeal: 62.8 },
-        { semana: 20, peso: 64, pesoIdeal: 64.5 },
-        { semana: 24, peso: 68, pesoIdeal: 66.5 },
-        { semana: 28, peso: 70, pesoIdeal: 68.5 },
-        { semana: 32, peso: 72, pesoIdeal: 70.5 },
-        { semana: 36, peso: 74, pesoIdeal: 72.5 },
+    const [loading, setLoading] = useState(true)
+    const [dadosPeso, setDadosPeso] = useState<any[]>([])
+    const [dadosAlturaUterina, setDadosAlturaUterina] = useState<any[]>([])
+
+    // Placeholder patient ID - replace with auth context later
+    const pacienteId = "00000000-0000-0000-0000-000000000000"
+
+    // Curvas de referência (mantidas estáticas por enquanto para comparação)
+    const referenciaAlturaUterina = [
+        { semana: 20, p10: 18, p50: 20, p90: 22 },
+        { semana: 24, p10: 22, p50: 24, p90: 26 },
+        { semana: 28, p10: 26, p50: 28, p90: 30 },
+        { semana: 32, p10: 29, p50: 32, p90: 34 },
+        { semana: 36, p10: 32, p50: 35, p90: 38 },
+        { semana: 40, p10: 34, p50: 37, p90: 40 },
     ]
 
-    // Dados mock - Altura Uterina
-    const dadosAlturaUterina = [
-        { semana: 12, au: 12, p10: 10, p50: 12, p90: 14 },
-        { semana: 16, au: 16, p10: 14, p50: 16, p90: 18 },
-        { semana: 20, au: 20, p10: 18, p50: 20, p90: 22 },
-        { semana: 24, au: 24, p10: 22, p50: 24, p90: 26 },
-        { semana: 28, au: 28, p10: 26, p50: 28, p90: 30 },
-        { semana: 32, au: 31, p10: 29, p50: 32, p90: 34 },
-        { semana: 36, au: 34, p10: 32, p50: 35, p90: 38 },
-    ]
+    useEffect(() => {
+        loadData()
+    }, [])
 
-    // Dados mock - Percentil do Peso Fetal
+    const loadData = async () => {
+        try {
+            // Buscar exames clínicos
+            const { data: exames, error } = await supabase
+                .from('exames_clinicos')
+                .select('data, peso, altura_uterina, idade_gestacional') // Precisamos garantir que esses campos existam ou sejam adaptados
+                .eq('paciente_id', pacienteId)
+                .order('data', { ascending: true })
+
+            if (error) throw error
+
+            if (exames) {
+                // Processar dados para o gráfico de Peso
+                // Assumindo que temos uma data base para calcular semanas ou o campo idade_gestacional
+                // Para simplificar, vamos tentar extrair a semana da string "XX semanas" se existir, ou usar um contador simples
+
+                const processedPeso = exames.map((exame, index) => {
+                    // Tenta extrair número da string "24 semanas"
+                    const semanaMatch = exame.idade_gestacional?.match(/(\d+)/)
+                    const semana = semanaMatch ? parseInt(semanaMatch[0]) : index * 4 + 12 // Fallback
+
+                    return {
+                        semana,
+                        peso: parseFloat(exame.peso) || null,
+                        // Peso ideal simplificado: ganho de 0.4kg/semana a partir da semana 12 (base 60kg)
+                        pesoIdeal: 60 + (semana > 12 ? (semana - 12) * 0.4 : 0)
+                    }
+                }).filter(d => d.peso !== null)
+
+                setDadosPeso(processedPeso)
+
+                // Processar dados para Altura Uterina
+                // Combinar dados reais com curvas de referência
+                const processedAU = exames.map((exame, index) => {
+                    const semanaMatch = exame.idade_gestacional?.match(/(\d+)/)
+                    const semana = semanaMatch ? parseInt(semanaMatch[0]) : index * 4 + 12
+
+                    // Encontrar referência próxima
+                    const ref = referenciaAlturaUterina.find(r => Math.abs(r.semana - semana) <= 2) || {}
+
+                    return {
+                        semana,
+                        au: parseFloat(exame.altura_uterina) || null,
+                        ...ref
+                    }
+                }).filter(d => d.au !== null)
+
+                // Se não tiver dados reais suficientes, mesclar com referência para mostrar o gráfico de fundo
+                if (processedAU.length === 0) {
+                    setDadosAlturaUterina(referenciaAlturaUterina)
+                } else {
+                    setDadosAlturaUterina(processedAU)
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao carregar gráficos:", error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Dados mock - Percentil do Peso Fetal (mantido mock por enquanto pois vem de USG)
     const dadosPercentilFetal = [
         { semana: 12, peso: 14, p10: 10, p50: 14, p90: 18 },
         { semana: 16, peso: 100, p10: 80, p50: 100, p90: 120 },
@@ -41,6 +102,14 @@ export default function GraficosPage() {
         { semana: 32, peso: 1700, p10: 1500, p50: 1800, p90: 2100 },
         { semana: 36, peso: 2500, p10: 2200, p50: 2600, p90: 3000 },
     ]
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
@@ -63,7 +132,7 @@ export default function GraficosPage() {
                             Gráficos de Evolução
                         </h1>
                         <p className="text-muted-foreground">
-                            Acompanhe a evolução da gestação através de gráficos
+                            Acompanhe a evolução da gestação com base nos seus registros clínicos
                         </p>
                     </div>
                 </div>
@@ -76,75 +145,54 @@ export default function GraficosPage() {
                             Ganho de Peso Materno
                         </CardTitle>
                         <CardDescription>
-                            Evolução do peso durante a gestação comparado com a curva ideal
+                            Evolução do peso durante a gestação
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <ResponsiveContainer width="100%" height={350}>
-                            <AreaChart data={dadosPeso}>
-                                <defs>
-                                    <linearGradient id="colorPeso" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorIdeal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.2} />
-                                        <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                                <XAxis
-                                    dataKey="semana"
-                                    label={{ value: 'Semanas de Gestação', position: 'insideBottom', offset: -5 }}
-                                    stroke="hsl(var(--muted-foreground))"
-                                />
-                                <YAxis
-                                    label={{ value: 'Peso (kg)', angle: -90, position: 'insideLeft' }}
-                                    stroke="hsl(var(--muted-foreground))"
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: 'hsl(var(--background))',
-                                        border: '1px solid hsl(var(--border))',
-                                        borderRadius: '8px'
-                                    }}
-                                />
-                                <Legend />
-                                <Area
-                                    type="monotone"
-                                    dataKey="pesoIdeal"
-                                    stroke="hsl(var(--accent))"
-                                    fillOpacity={1}
-                                    fill="url(#colorIdeal)"
-                                    name="Peso Ideal"
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="peso"
-                                    stroke="hsl(var(--primary))"
-                                    fillOpacity={1}
-                                    fill="url(#colorPeso)"
-                                    name="Peso Atual"
-                                    strokeWidth={3}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded bg-primary"></div>
-                                <span>Peso Atual: <strong>74 kg</strong></span>
+                        {dadosPeso.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={350}>
+                                <AreaChart data={dadosPeso}>
+                                    <defs>
+                                        <linearGradient id="colorPeso" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                    <XAxis
+                                        dataKey="semana"
+                                        label={{ value: 'Semanas', position: 'insideBottom', offset: -5 }}
+                                        stroke="hsl(var(--muted-foreground))"
+                                    />
+                                    <YAxis
+                                        label={{ value: 'Peso (kg)', angle: -90, position: 'insideLeft' }}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        domain={['auto', 'auto']}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: 'hsl(var(--background))',
+                                            border: '1px solid hsl(var(--border))',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
+                                    <Legend />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="peso"
+                                        stroke="hsl(var(--primary))"
+                                        fillOpacity={1}
+                                        fill="url(#colorPeso)"
+                                        name="Peso Atual"
+                                        strokeWidth={3}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-[350px] flex items-center justify-center text-muted-foreground bg-muted/10 rounded-lg">
+                                Nenhum dado de peso registrado ainda.
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded bg-accent"></div>
-                                <span>Ganho Total: <strong>+14 kg</strong></span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-green-500" />
-                                <span className="text-green-500">Dentro do esperado</span>
-                            </div>
-                        </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -156,7 +204,7 @@ export default function GraficosPage() {
                             Altura Uterina
                         </CardTitle>
                         <CardDescription>
-                            Medida da altura uterina com curvas de percentil (P10, P50, P90)
+                            Medida da altura uterina (cm) por semana de gestação
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -165,7 +213,7 @@ export default function GraficosPage() {
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                 <XAxis
                                     dataKey="semana"
-                                    label={{ value: 'Semanas de Gestação', position: 'insideBottom', offset: -5 }}
+                                    label={{ value: 'Semanas', position: 'insideBottom', offset: -5 }}
                                     stroke="hsl(var(--muted-foreground))"
                                 />
                                 <YAxis
@@ -195,7 +243,7 @@ export default function GraficosPage() {
                                     stroke="hsl(var(--accent))"
                                     strokeDasharray="3 3"
                                     strokeWidth={2}
-                                    name="P50 (Mediana)"
+                                    name="P50 (Média)"
                                     dot={false}
                                 />
                                 <Line
@@ -212,21 +260,12 @@ export default function GraficosPage() {
                                     dataKey="au"
                                     stroke="hsl(var(--secondary))"
                                     strokeWidth={3}
-                                    name="AU Medida"
+                                    name="Sua Medida"
+                                    connectNulls
                                     dot={{ fill: 'hsl(var(--secondary))', r: 5 }}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
-                        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded bg-secondary"></div>
-                                <span>Última medida: <strong>34 cm</strong> (36 semanas)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-green-500" />
-                                <span className="text-green-500">Crescimento adequado</span>
-                            </div>
-                        </div>
                     </CardContent>
                 </Card>
 
@@ -235,7 +274,7 @@ export default function GraficosPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Baby className="h-5 w-5 text-pink-500" />
-                            Evolução do Percentil do Peso Fetal
+                            Evolução do Percentil do Peso Fetal (Exemplo)
                         </CardTitle>
                         <CardDescription>
                             Estimativa do peso fetal por ultrassom com curvas de percentil
@@ -299,54 +338,6 @@ export default function GraficosPage() {
                                 />
                             </LineChart>
                         </ResponsiveContainer>
-                        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#ec4899' }}></div>
-                                <span>Peso estimado: <strong>2500g</strong> (36 semanas)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-green-500" />
-                                <span className="text-green-500">Percentil 50 - Adequado</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Informações Adicionais */}
-                <Card className="bg-muted/50">
-                    <CardContent className="pt-6">
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <div className="space-y-2">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <Weight className="h-4 w-4 text-primary" />
-                                    Ganho de Peso
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                    O ganho de peso ideal varia de acordo com o IMC pré-gestacional.
-                                    A curva mostra a comparação entre o peso atual e o esperado.
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <Ruler className="h-4 w-4 text-secondary" />
-                                    Altura Uterina
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                    A altura uterina deve crescer cerca de 1cm por semana após a 20ª semana.
-                                    Valores entre P10 e P90 são considerados normais.
-                                </p>
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <Baby className="h-4 w-4 text-pink-500" />
-                                    Peso Fetal
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                    O peso fetal é estimado por ultrassom. Valores entre P10 e P90
-                                    indicam crescimento adequado para a idade gestacional.
-                                </p>
-                            </div>
-                        </div>
                     </CardContent>
                 </Card>
             </main>
