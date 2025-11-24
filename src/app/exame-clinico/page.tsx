@@ -26,8 +26,10 @@ export default function ExameClinicoPage() {
         edema: "",
         movimentosFetais: "",
         apresentacaoFetal: "",
+        toque: "",
 
-        // Observações
+        // Conduta e Observações
+        conduta: "",
         observacoes: ""
     })
 
@@ -273,35 +275,62 @@ export default function ExameClinicoPage() {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="apresentacaoFetal">Apresentação Fetal</Label>
-                                            <select
-                                                id="apresentacaoFetal"
-                                                name="apresentacaoFetal"
-                                                value={formData.apresentacaoFetal}
-                                                onChange={handleChange}
-                                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                            >
-                                                <option value="">Selecione</option>
-                                                <option value="cefalica">Cefálica</option>
-                                                <option value="pelvica">Pélvica</option>
-                                                <option value="transversa">Transversa</option>
-                                                <option value="nao-determinada">Não determinada</option>
-                                            </select>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="apresentacaoFetal">Apresentação Fetal</Label>
+                                                <select
+                                                    id="apresentacaoFetal"
+                                                    name="apresentacaoFetal"
+                                                    value={formData.apresentacaoFetal}
+                                                    onChange={handleChange}
+                                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                >
+                                                    <option value="">Selecione</option>
+                                                    <option value="cefalica">Cefálica</option>
+                                                    <option value="pelvica">Pélvica</option>
+                                                    <option value="transversa">Transversa</option>
+                                                    <option value="nao-determinada">Não determinada</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="toque">Toque (Exame Vaginal)</Label>
+                                                <Input
+                                                    id="toque"
+                                                    name="toque"
+                                                    value={formData.toque}
+                                                    onChange={handleChange}
+                                                    placeholder="Ex: Colo fechado, posterior..."
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Observações */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="observacoes">Observações</Label>
-                                        <textarea
-                                            id="observacoes"
-                                            name="observacoes"
-                                            value={formData.observacoes}
-                                            onChange={handleChange}
-                                            className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                            placeholder="Anotações adicionais sobre a consulta..."
-                                        />
+                                    {/* Conduta e Observações */}
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="conduta">Conduta / Plano Terapêutico</Label>
+                                            <textarea
+                                                id="conduta"
+                                                name="conduta"
+                                                value={formData.conduta}
+                                                onChange={handleChange}
+                                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                placeholder="Ex: Solicitação de exames, prescrição de vitaminas..."
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="observacoes">Observações Gerais</Label>
+                                            <textarea
+                                                id="observacoes"
+                                                name="observacoes"
+                                                value={formData.observacoes}
+                                                onChange={handleChange}
+                                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                placeholder="Anotações adicionais sobre a consulta..."
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Botões */}
