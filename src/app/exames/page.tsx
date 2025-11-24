@@ -12,6 +12,8 @@ import { supabase } from "@/lib/supabaseClient"
 import { ModalExameLaboratorial } from "@/components/modals/ModalExameLaboratorial"
 import { ModalExameImagem } from "@/components/modals/ModalExameImagem"
 
+export const dynamic = 'force-dynamic'
+
 type TabType = "laboratoriais" | "clinicos" | "imagenologia"
 
 export default function ExamesPage() {

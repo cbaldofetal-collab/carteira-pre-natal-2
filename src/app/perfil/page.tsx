@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { User, Heart, Calendar, Activity, FileText, AlertCircle, Save } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 
+export const dynamic = 'force-dynamic'
+
 export default function PerfilPage() {
     const [loading, setLoading] = useState(false)
     const pacienteId = "00000000-0000-0000-0000-000000000000" // Placeholder
