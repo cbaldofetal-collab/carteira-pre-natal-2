@@ -20,6 +20,7 @@ export function ModalExameLaboratorial({ isOpen, onClose, onSubmit }: ModalExame
         resultado: "",
         arquivo: null as File | null
     })
+    const [outroTipo, setOutroTipo] = useState("")
 
     const examesLaboratoriais = [
         "Hemograma Completo",
@@ -44,13 +45,24 @@ export function ModalExameLaboratorial({ isOpen, onClose, onSubmit }: ModalExame
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        onSubmit(formData)
+
+        // Se for "Outro", usa o valor digitado no campo personalizado
+        const nomeExame = formData.tipo === "Outro" ? outroTipo : formData.tipo
+
+        onSubmit({
+            nome: nomeExame, // Envia como 'nome' para manter compatibilidade
+            data: formData.data,
+            resultado: formData.resultado,
+            arquivo: formData.arquivo
+        })
+
         setFormData({
             tipo: "",
             data: "",
             resultado: "",
             arquivo: null
         })
+        setOutroTipo("")
         onClose()
     }
 
@@ -93,6 +105,19 @@ export function ModalExameLaboratorial({ isOpen, onClose, onSubmit }: ModalExame
                                 ))}
                             </select>
                         </div>
+
+                        {formData.tipo === "Outro" && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <Label htmlFor="outroTipo">Nome do Exame *</Label>
+                                <Input
+                                    id="outroTipo"
+                                    value={outroTipo}
+                                    onChange={(e) => setOutroTipo(e.target.value)}
+                                    placeholder="Digite o nome do exame"
+                                    required
+                                />
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label htmlFor="data">Data de Realização *</Label>
