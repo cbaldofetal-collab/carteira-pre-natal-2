@@ -66,6 +66,13 @@ jobs:
           rm -rf public
           mkdir -p public
           cp -R "Gest ultrassom/build/web/"* public/
+          cat > public/vercel.json << 'EOF'
+          {
+            "version": 2,
+            "builds": [ { "src": "**", "use": "@vercel/static" } ],
+            "rewrites": [ { "source": "/(.*)", "destination": "/index.html" } ]
+          }
+          EOF
 
       - name: Listar arquivos public (Prod)
         run: |
@@ -100,7 +107,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alias-domains: gest-ultrassom.vercel.app
-          working-directory: "."
+          working-directory: "public"
           vercel-args: '--prod'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -184,6 +191,13 @@ jobs:
           rm -rf public
           mkdir -p public
           cp -R "Gest ultrassom/build/web/"* public/
+          cat > public/vercel.json << 'EOF'
+          {
+            "version": 2,
+            "builds": [ { "src": "**", "use": "@vercel/static" } ],
+            "rewrites": [ { "source": "/(.*)", "destination": "/index.html" } ]
+          }
+          EOF
 
       - name: Listar arquivos public (Preview)
         run: |
@@ -218,7 +232,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-comment: true
-          working-directory: "."
+          working-directory: "public"
           vercel-args: ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
