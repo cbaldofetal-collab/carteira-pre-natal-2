@@ -101,16 +101,16 @@ jobs:
         run: |
           url="${{ steps.vercel-deploy-prod.outputs.preview-url }}"
           if [ -z "$url" ]; then
-            exit 1;
+            echo "Preview URL vazio"; exit 1;
           fi
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$url");
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 --connect-timeout 5 "$url");
             if [ "$code" = "200" ]; then
               exit 0;
             fi
-            sleep 5;
+            sleep 6;
           done
-          exit 1
+          echo "Smoke test falhou (Prod). Último código: $code"; exit 1
 
   build-and-deploy-preview:
     runs-on: ubuntu-latest
@@ -211,11 +211,14 @@ jobs:
       - name: Smoke test (Preview)
         run: |
           url="${{ steps.vercel-deploy-preview.outputs.preview-url }}"
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$url");
+          if [ -z "$url" ]; then
+            echo "Preview URL vazio"; exit 1;
+          fi
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 --connect-timeout 5 "$url");
             if [ "$code" = "200" ]; then
               exit 0;
             fi
-            sleep 5;
+            sleep 6;
           done
-          exit 1
+          echo "Smoke test falhou (Preview). Último código: $code"; exit 1
