@@ -86,8 +86,8 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: "Gest ultrassom/build/web"
-          vercel-args: '--prebuilt --prod'
+          working-directory: "."
+          vercel-args: '--prod'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
@@ -191,8 +191,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-comment: true
-          working-directory: "Gest ultrassom/build/web"
-          vercel-args: '--prebuilt'
+          working-directory: "."
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
