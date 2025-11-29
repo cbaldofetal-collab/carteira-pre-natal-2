@@ -110,9 +110,9 @@ jobs:
       - name: Diagnóstico Vercel (Domínios e Deployments)
         run: |
           echo "Domínios do projeto:";
-          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/domains" | jq '.' || true
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/domains" || true
           echo "Deployments recentes:";
-          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&limit=5" | jq '.' || true
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&limit=5" || true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -125,10 +125,22 @@ jobs:
           curl -s -X POST "https://api.vercel.com/v2/aliases" \
             -H "Authorization: Bearer $VERCEL_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"alias":"gest-ultrassom.vercel.app","deploymentUrl":"'"$DEPLOY_URL"'"}' | jq '.' || true
+            -d '{"alias":"gest-ultrassom.vercel.app","deploymentUrl":"'"$DEPLOY_URL"'"}' > alias_response.json || true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
+      - name: Publicar diagnóstico no Check (Prod)
+        run: |
+          echo "### Vercel Diagnóstico" >> $GITHUB_STEP_SUMMARY
+          echo "Projeto: $VERCEL_PROJECT_ID" >> $GITHUB_STEP_SUMMARY
+          echo "Preview URL: ${{ steps.vercel-deploy-prod.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Domínios configurados:" >> $GITHUB_STEP_SUMMARY
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/domains" >> $GITHUB_STEP_SUMMARY || true
+          echo "\nAlias response:" >> $GITHUB_STEP_SUMMARY
+          cat alias_response.json >> $GITHUB_STEP_SUMMARY || true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       - name: Smoke test (Prod)
         run: |
           url="${{ steps.vercel-deploy-prod.outputs.preview-url }}/index.html"
