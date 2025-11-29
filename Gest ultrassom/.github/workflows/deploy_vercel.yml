@@ -42,7 +42,6 @@ jobs:
         with:
           name: flutter-web-build
           path: Gest ultrassom/build/web
-          retention-days: 14
 
       - name: Validar segredos Vercel
         run: |
@@ -108,7 +107,6 @@ jobs:
         with:
           name: flutter-web-build-preview
           path: Gest ultrassom/build/web
-          retention-days: 7
 
       - name: Validar segredos Vercel
         run: |
