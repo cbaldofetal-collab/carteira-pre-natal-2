@@ -11,7 +11,7 @@ class AppConfig {
   static const clinic = ClinicConfig(id: 'fmflasp', nome: 'FMFLASP', whatsappNumero: '5511913561616');
 
   static String get whatsappNumero => clinic.whatsappNumero;
-  static const webVapidKey = 'YOUR_WEB_VAPID_KEY';
+  static const webVapidKey = String.fromEnvironment('WEB_VAPID_KEY', defaultValue: '');
   static const backendBaseUrl = String.fromEnvironment('BACKEND_BASE_URL', defaultValue: '');
 
   static List<ExameTemplate> templates() {
