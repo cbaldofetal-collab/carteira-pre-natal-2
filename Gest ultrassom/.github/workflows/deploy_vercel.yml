@@ -99,6 +99,7 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          alias-domains: gest-ultrassom.vercel.app
           working-directory: "."
           vercel-args: '--prebuilt --prod'
         env:
