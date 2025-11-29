@@ -67,6 +67,13 @@ jobs:
           mkdir -p .vercel/output/static
           cp -R "Gest ultrassom/build/web/"* .vercel/output/static/
 
+      - name: Listar arquivos .vercel/output (Prod)
+        run: |
+          echo "Conteúdo de .vercel/output/static:";
+          ls -la .vercel/output/static | head -n 200;
+          echo "Verificar index.html:";
+          test -f .vercel/output/static/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -176,6 +183,13 @@ jobs:
           rm -rf .vercel/output
           mkdir -p .vercel/output/static
           cp -R "Gest ultrassom/build/web/"* .vercel/output/static/
+
+      - name: Listar arquivos .vercel/output (Preview)
+        run: |
+          echo "Conteúdo de .vercel/output/static:";
+          ls -la .vercel/output/static | head -n 200;
+          echo "Verificar index.html:";
+          test -f .vercel/output/static/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
