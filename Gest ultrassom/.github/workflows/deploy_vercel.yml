@@ -1,0 +1,148 @@
+name: Deploy Flutter Web to Vercel
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-prod:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('Gest ultrassom/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+        working-directory: Gest ultrassom
+
+      - name: Flutter Build Web
+        run: flutter build web --release --web-renderer canvaskit
+        working-directory: Gest ultrassom
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: Gest ultrassom/build/web
+          retention-days: 14
+
+      - name: Validar segredos Vercel
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Segredos do Vercel ausentes";
+            exit 1;
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (Prod)
+        id: vercel-deploy-prod
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: Gest ultrassom/build/web
+          vercel-args: '--prebuilt --prod'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Publicar URL no Check (Prod)
+        run: |
+          echo "### Vercel Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "Preview URL: ${{ steps.vercel-deploy-prod.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment Name: ${{ steps.vercel-deploy-prod.outputs.preview-name }}" >> $GITHUB_STEP_SUMMARY
+
+  build-and-deploy-preview:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('Gest ultrassom/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+        working-directory: Gest ultrassom
+
+      - name: Flutter Build Web
+        run: flutter build web --release --web-renderer canvaskit --source-maps
+        working-directory: Gest ultrassom
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build-preview
+          path: Gest ultrassom/build/web
+          retention-days: 7
+
+      - name: Validar segredos Vercel
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Segredos do Vercel ausentes";
+            exit 1;
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (Preview)
+        id: vercel-deploy-preview
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-comment: true
+          working-directory: Gest ultrassom/build/web
+          vercel-args: '--prebuilt'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Publicar URL no Check (Preview)
+        run: |
+          echo "### Vercel Preview" >> $GITHUB_STEP_SUMMARY
+          echo "Preview URL: ${{ steps.vercel-deploy-preview.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment Name: ${{ steps.vercel-deploy-preview.outputs.preview-name }}" >> $GITHUB_STEP_SUMMARY
+      - name: Verificar Preview URL
+        run: |
+          if [ -z "${{ steps.vercel-deploy-preview.outputs.preview-url }}" ]; then
+            echo "Preview URL não gerado pelo Vercel Action.";
+            exit 1;
+          fi
