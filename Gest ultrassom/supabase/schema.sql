@@ -26,3 +26,12 @@ create policy if not exists "perfil_read" on perfis for select using (true);
 create policy if not exists "perfil_write" on perfis for insert with check (true);
 create policy if not exists "exame_read" on exames for select using (true);
 create policy if not exists "exame_write" on exames for insert with check (true);
+
+create table if not exists fcm_tokens (
+  id uuid primary key default gen_random_uuid(),
+  perfil_id uuid references perfis(id) on delete cascade,
+  token text not null,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists fcm_tokens_perfil_idx on fcm_tokens(perfil_id);
