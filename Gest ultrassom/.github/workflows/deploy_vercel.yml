@@ -97,6 +97,21 @@ jobs:
           echo "Preview URL: ${{ steps.vercel-deploy-prod.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
           echo "Deployment Name: ${{ steps.vercel-deploy-prod.outputs.preview-name }}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Smoke test (Prod)
+        run: |
+          url="${{ steps.vercel-deploy-prod.outputs.preview-url }}"
+          if [ -z "$url" ]; then
+            exit 1;
+          fi
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url");
+            if [ "$code" = "200" ]; then
+              exit 0;
+            fi
+            sleep 5;
+          done
+          exit 1
+
   build-and-deploy-preview:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -192,3 +207,15 @@ jobs:
             echo "Preview URL não gerado pelo Vercel Action.";
             exit 1;
           fi
+
+      - name: Smoke test (Preview)
+        run: |
+          url="${{ steps.vercel-deploy-preview.outputs.preview-url }}"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url");
+            if [ "$code" = "200" ]; then
+              exit 0;
+            fi
+            sleep 5;
+          done
+          exit 1
