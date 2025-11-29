@@ -86,8 +86,8 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: "Gest ultrassom/build/web"
-          vercel-args: '--prod'
+          working-directory: "."
+          vercel-args: '--prebuilt --prod'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
@@ -99,7 +99,7 @@ jobs:
 
       - name: Smoke test (Prod)
         run: |
-          url="${{ steps.vercel-deploy-prod.outputs.preview-url }}"
+          url="${{ steps.vercel-deploy-prod.outputs.preview-url }}/index.html"
           if [ -z "$url" ]; then
             echo "Preview URL vazio"; exit 1;
           fi
@@ -191,7 +191,8 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-comment: true
-          working-directory: "Gest ultrassom/build/web"
+          working-directory: "."
+          vercel-args: '--prebuilt'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
@@ -209,7 +210,7 @@ jobs:
 
       - name: Smoke test (Preview)
         run: |
-          url="${{ steps.vercel-deploy-preview.outputs.preview-url }}"
+          url="${{ steps.vercel-deploy-preview.outputs.preview-url }}/index.html"
           if [ -z "$url" ]; then
             echo "Preview URL vazio"; exit 1;
           fi
