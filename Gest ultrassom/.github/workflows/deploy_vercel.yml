@@ -61,27 +61,18 @@ jobs:
         run: flutter build web --release --web-renderer canvaskit --dart-define SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} --dart-define BACKEND_BASE_URL=${{ secrets.BACKEND_BASE_URL }} --dart-define WEB_VAPID_KEY=${{ secrets.WEB_VAPID_KEY }} --dart-define FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} --dart-define FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} --dart-define FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} --dart-define FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} --dart-define FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }} --dart-define FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
         working-directory: "Gest ultrassom"
 
-      - name: Preparar .vercel/output (Prod)
+      - name: Preparar public (Prod)
         run: |
-          rm -rf .vercel/output
-          mkdir -p .vercel/output/static
-          cp -R "Gest ultrassom/build/web/"* .vercel/output/static/
-          cat > .vercel/output/config.json << 'EOF'
-          {
-            "version": 3,
-            "routes": [
-              { "handle": "filesystem" },
-              { "src": "/(.*)", "dest": "/index.html" }
-            ]
-          }
-          EOF
+          rm -rf public
+          mkdir -p public
+          cp -R "Gest ultrassom/build/web/"* public/
 
-      - name: Listar arquivos .vercel/output (Prod)
+      - name: Listar arquivos public (Prod)
         run: |
-          echo "Conteúdo de .vercel/output/static:";
-          ls -la .vercel/output/static | head -n 200;
+          echo "Conteúdo de public:";
+          ls -la public | head -n 200;
           echo "Verificar index.html:";
-          test -f .vercel/output/static/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
+          test -f public/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -110,7 +101,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alias-domains: gest-ultrassom.vercel.app
           working-directory: "."
-          vercel-args: '--prebuilt --prod'
+          vercel-args: '--prod'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
@@ -188,27 +179,18 @@ jobs:
         run: flutter build web --release --web-renderer canvaskit --source-maps --dart-define SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} --dart-define BACKEND_BASE_URL=${{ secrets.BACKEND_BASE_URL }} --dart-define WEB_VAPID_KEY=${{ secrets.WEB_VAPID_KEY }} --dart-define FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} --dart-define FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} --dart-define FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} --dart-define FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} --dart-define FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }} --dart-define FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
         working-directory: "Gest ultrassom"
 
-      - name: Preparar .vercel/output (Preview)
+      - name: Preparar public (Preview)
         run: |
-          rm -rf .vercel/output
-          mkdir -p .vercel/output/static
-          cp -R "Gest ultrassom/build/web/"* .vercel/output/static/
-          cat > .vercel/output/config.json << 'EOF'
-          {
-            "version": 3,
-            "routes": [
-              { "handle": "filesystem" },
-              { "src": "/(.*)", "dest": "/index.html" }
-            ]
-          }
-          EOF
+          rm -rf public
+          mkdir -p public
+          cp -R "Gest ultrassom/build/web/"* public/
 
-      - name: Listar arquivos .vercel/output (Preview)
+      - name: Listar arquivos public (Preview)
         run: |
-          echo "Conteúdo de .vercel/output/static:";
-          ls -la .vercel/output/static | head -n 200;
+          echo "Conteúdo de public:";
+          ls -la public | head -n 200;
           echo "Verificar index.html:";
-          test -f .vercel/output/static/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
+          test -f public/index.html && echo "index.html OK" || (echo "index.html ausente" && exit 1)
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -237,7 +219,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-comment: true
           working-directory: "."
-          vercel-args: '--prebuilt'
+          vercel-args: ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
