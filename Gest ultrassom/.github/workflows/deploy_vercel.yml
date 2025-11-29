@@ -31,17 +31,17 @@ jobs:
 
       - name: Flutter Pub Get
         run: flutter pub get
-        working-directory: Gest ultrassom
+        working-directory: "Gest ultrassom"
 
       - name: Flutter Build Web
         run: flutter build web --release --web-renderer canvaskit
-        working-directory: Gest ultrassom
+        working-directory: "Gest ultrassom"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: flutter-web-build
-          path: Gest ultrassom/build/web
+          path: "Gest ultrassom/build/web"
 
       - name: Validar segredos Vercel
         run: |
@@ -62,7 +62,7 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: Gest ultrassom/build/web
+          working-directory: "Gest ultrassom/build/web"
           vercel-args: '--prebuilt --prod'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -96,17 +96,17 @@ jobs:
 
       - name: Flutter Pub Get
         run: flutter pub get
-        working-directory: Gest ultrassom
+        working-directory: "Gest ultrassom"
 
       - name: Flutter Build Web
         run: flutter build web --release --web-renderer canvaskit --source-maps
-        working-directory: Gest ultrassom
+        working-directory: "Gest ultrassom"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: flutter-web-build-preview
-          path: Gest ultrassom/build/web
+          path: "Gest ultrassom/build/web"
 
       - name: Validar segredos Vercel
         run: |
@@ -128,7 +128,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-comment: true
-          working-directory: Gest ultrassom/build/web
+          working-directory: "Gest ultrassom/build/web"
           vercel-args: '--prebuilt'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
