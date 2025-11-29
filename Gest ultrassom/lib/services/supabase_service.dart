@@ -28,4 +28,16 @@ class SupabaseService {
   static Future<void> addExame(Map<String, dynamic> exame) async {
     await _client.from('exames').insert(exame);
   }
+
+  static Future<bool> registerToken({required String perfilId, required String token}) async {
+    try {
+      final res = await _client.functions.invoke('registerToken', body: {
+        'perfilId': perfilId,
+        'token': token,
+      });
+      return res.status == 200;
+    } catch (_) {
+      return false;
+    }
+  }
 }
