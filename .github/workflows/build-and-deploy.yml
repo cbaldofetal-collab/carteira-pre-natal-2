@@ -1,57 +1,36 @@
 name: Build and Deploy Flutter Web - Gest Ultrassom
 
 on:
-    push:
-        branches: [main, master]
-        paths:
-            - "Gest ultrassom/**"
-            - ".github/workflows/build-and-deploy.yml"
-    pull_request:
-        branches: [main, master]
-    workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "gest-ultrassom/**"
+      - ".github/workflows/build-and-deploy.yml"
+  workflow_dispatch:
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Setup Flutter
-              uses: subosito/flutter-action@v2
-              with:
-                  flutter-version: "3.24.5"
-                  channel: "stable"
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
 
-            - name: Flutter version
-              run: flutter --version
+      - name: Install dependencies
+        working-directory: ./gest-ultrassom
+        run: flutter pub get
 
-            - name: Install dependencies
-              working-directory: ./Gest ultrassom
-              run: flutter pub get
+      - name: Build Web
+        working-directory: ./gest-ultrassom
+        run: flutter build web --release
 
-            - name: Analyze code
-              working-directory: ./Gest ultrassom
-              run: flutter analyze || true
-
-            - name: Build Flutter Web
-              working-directory: ./Gest ultrassom
-              run: flutter build web --release --web-renderer html
-
-            - name: Upload build artifacts
-              uses: actions/upload-artifact@v4
-              with:
-                  name: flutter-web-build
-                  path: Gest ultrassom/build/web/
-                  retention-days: 7
-
-            - name: Deploy to Netlify
-              if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-              uses: netlify/actions/cli@master
-              env:
-                  NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-                  NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-              with:
-                  args: deploy --dir="Gest ultrassom/build/web" --prod
-              continue-on-error: true
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: gest-ultrassom/build/web/
