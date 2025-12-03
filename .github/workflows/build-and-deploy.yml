@@ -1,0 +1,36 @@
+name: Build and Deploy Flutter Web - Gest Ultrassom
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'gest-ultrassom/**'
+      - '.github/workflows/build-and-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+      
+      - name: Install dependencies
+        working-directory: ./gest-ultrassom
+        run: flutter pub get
+      
+      - name: Build Web
+        working-directory: ./gest-ultrassom
+        run: flutter build web --release
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: gest-ultrassom/build/web/
