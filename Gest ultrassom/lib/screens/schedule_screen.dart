@@ -4,8 +4,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/perfil.dart';
+import '../models/exame.dart';
 import '../models/exame_template.dart';
 import '../services/gestacao_service.dart';
+import '../services/supabase_service.dart';
 import '../config.dart';
 import '../services/storage_service.dart';
 import '../services/reminder_service.dart';
@@ -21,14 +23,14 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  Map<String, String> status = {};
+  // Agora usamos objetos Exame do Supabase em vez de maps locais
+  List<Exame> exames = [];
+  bool isLoading = true;
   String filtro = 'todos';
   DateTime? dppCorrigida;
   bool usarCorrigida = false;
   String? flashId;
   final GlobalKey _exportKey = GlobalKey();
-  Map<String, DateTime?> agendadoDatas = {};
-  Map<String, DateTime?> realizadoDatas = {};
 
   Color _bgColor(String st) {
     if (st == 'agendado') return Colors.blue.shade100;
@@ -49,22 +51,29 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> _load() async {
-    final s = await StorageService.loadStatus(widget.perfil.id);
-    final dppc = await StorageService.loadDppCorrigida(widget.perfil.id);
-    final templates = AppConfig.templates();
-    final agd = <String, DateTime?>{};
-    final rzd = <String, DateTime?>{};
-    for (final t in templates) {
-      agd[t.id] = await StorageService.getAgendadoData(widget.perfil.id, t.id);
-      rzd[t.id] = await StorageService.getRealizadoData(widget.perfil.id, t.id);
+    setState(() => isLoading = true);
+    try {
+      // Carregar exames do Supabase
+      final examesData = await SupabaseService.listExames(widget.perfil.id);
+      final examesList = examesData.map((e) => Exame.fromJson(e)).toList();
+      
+      // Carregar DPP corrigida do storage local (ou Supabase depois)
+      final dppc = await StorageService.loadDppCorrigida(widget.perfil.id);
+      
+      setState(() {
+        exames = examesList;
+        dppCorrigida = dppc;
+        usarCorrigida = dppc != null;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() => isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar exames: $e')),
+        );
+      }
     }
-    setState(() {
-      status = s;
-      dppCorrigida = dppc;
-      usarCorrigida = dppc != null;
-      agendadoDatas = agd;
-      realizadoDatas = rzd;
-    });
   }
 
   Uri _waUri(String mensagem) {
@@ -80,64 +89,117 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
-  Future<void> _setStatus(String exameId, String novo) async {
-    status[exameId] = novo;
-    setState(() {});
-    await StorageService.saveStatus(widget.perfil.id, status);
-    if (novo == 'realizado') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exame marcado como realizado')),
-      );
-      final hoje = DateUtils.dateOnly(DateTime.now());
-      await StorageService.setRealizadoData(widget.perfil.id, exameId, hoje);
-      realizadoDatas[exameId] = hoje;
-    } else if (novo == 'agendado') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exame marcado como agendado')),
-      );
-    } else if (novo == 'pendente') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exame voltou para pendente')),
-      );
-      await StorageService.setAgendadoData(widget.perfil.id, exameId, DateTime.fromMillisecondsSinceEpoch(0));
-      await StorageService.setRealizadoData(widget.perfil.id, exameId, DateTime.fromMillisecondsSinceEpoch(0));
-      agendadoDatas[exameId] = null;
-      realizadoDatas[exameId] = null;
-    }
-    flashId = exameId;
-    setState(() {});
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted && flashId == exameId) {
-      flashId = null;
-      setState(() {});
+  Future<void> _setStatus(Exame exame, String novoStatus) async {
+    try {
+      // Atualizar no Supabase
+      await SupabaseService.updateExameStatus(exame.id, novoStatus);
+      
+      // Atualizar datas se necessário
+      if (novoStatus == 'realizado') {
+        final hoje = DateUtils.dateOnly(DateTime.now());
+        await SupabaseService.updateExameDatas(
+          exameId: exame.id,
+          realizadoEm: hoje,
+        );
+        
+        // Recarregar dados
+        await _load();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Exame marcado como realizado')),
+          );
+        }
+      } else if (novoStatus == 'agendado') {
+        // Recarregar dados
+        await _load();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Exame marcado como agendado')),
+          );
+        }
+      } else if (novoStatus == 'pendente') {
+        // Limpar datas
+        await SupabaseService.updateExameCompleto(
+          exameId: exame.id,
+          status: 'pendente',
+          agendadoPara: DateTime.fromMillisecondsSinceEpoch(0),
+          realizadoEm: DateTime.fromMillisecondsSinceEpoch(0),
+        );
+        
+        // Recarregar dados
+        await _load();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Exame voltou para pendente')),
+          );
+        }
+      }
+
+      // Efeito visual de flash
+      setState(() => flashId = exame.id);
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted && flashId == exame.id) {
+        setState(() => flashId = null);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar status: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _pickAgendado(String exameId) async {
+  Future<void> _pickAgendado(Exame exame) async {
     final hoje = DateTime.now();
     final escolhida = await showDatePicker(
       context: context,
-      initialDate: hoje,
+      initialDate: exame.agendadoPara ?? hoje,
       firstDate: DateTime(hoje.year - 1),
       lastDate: DateTime(hoje.year + 1),
     );
     if (escolhida != null) {
-      await StorageService.setAgendadoData(widget.perfil.id, exameId, escolhida);
-      setState(() => agendadoDatas[exameId] = escolhida);
+      try {
+        await SupabaseService.updateExameDatas(
+          exameId: exame.id,
+          agendadoPara: escolhida,
+        );
+        await _load(); // Recarregar
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro: $e')),
+          );
+        }
+      }
     }
   }
 
-  Future<void> _pickRealizado(String exameId) async {
+  Future<void> _pickRealizado(Exame exame) async {
     final hoje = DateTime.now();
     final escolhida = await showDatePicker(
       context: context,
-      initialDate: hoje,
+      initialDate: exame.realizadoEm ?? hoje,
       firstDate: DateTime(hoje.year - 1),
       lastDate: DateTime(hoje.year + 1),
     );
     if (escolhida != null) {
-      await StorageService.setRealizadoData(widget.perfil.id, exameId, escolhida);
-      setState(() => realizadoDatas[exameId] = escolhida);
+      try {
+        await SupabaseService.updateExameDatas(
+          exameId: exame.id,
+          realizadoEm: escolhida,
+        );
+        await _load(); // Recarregar
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -152,77 +214,95 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     await showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Corrigir IG pelo 1º USG'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Corrigir IG pelo 1º USG'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final hoje = DateTime.now();
-                        final escolhida = await showDatePicker(
-                          context: context,
-                          initialDate: hoje,
-                          firstDate: DateTime(hoje.year - 1),
-                          lastDate: DateTime(hoje.year + 1),
-                        );
-                        if (escolhida != null) {
-                          dataExame = escolhida;
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final hoje = DateTime.now();
+                            final escolhida = await showDatePicker(
+                              context: context,
+                              initialDate: hoje,
+                              firstDate: DateTime(hoje.year - 1),
+                              lastDate: DateTime(hoje.year + 1),
+                            );
+                            if (escolhida != null) {
+                              setDialogState(() => dataExame = escolhida);
+                            }
+                          },
+                          child: Text(dataExame != null
+                              ? 'Data: ${GestacaoService.formatDate(dataExame!)}'
+                              : 'Selecionar data do exame'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: semanasCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'IG semanas'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: diasCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'IG dias'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final w = int.tryParse(semanasCtrl.text) ?? 0;
+                    final d = int.tryParse(diasCtrl.text) ?? 0;
+                    if (dataExame != null && (w > 0 || d > 0)) {
+                      final igDias = w * 7 + d;
+                      final dppc = dataExame!.add(Duration(days: 280 - igDias));
+                      
+                      // Salvar no Supabase
+                      try {
+                        await SupabaseService.updateDppCorrigida(widget.perfil.id, dppc);
+                        await StorageService.saveDppCorrigida(widget.perfil.id, dppc);
+                        
+                        setState(() {
+                          dppCorrigida = dppc;
+                          usarCorrigida = true;
+                        });
+                        Navigator.of(ctx).pop();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Erro: $e')),
+                          );
                         }
-                      },
-                      child: Text(dataExame != null ? 'Data: ${GestacaoService.formatDate(dataExame!)}' : 'Selecionar data do exame'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: semanasCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'IG semanas'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: diasCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'IG dias'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final w = int.tryParse(semanasCtrl.text) ?? 0;
-                final d = int.tryParse(diasCtrl.text) ?? 0;
-                if (dataExame != null && (w > 0 || d > 0)) {
-                  final igDias = w * 7 + d;
-                  final dppc = dataExame!.add(Duration(days: 280 - igDias));
-                  await StorageService.saveDppCorrigida(widget.perfil.id, dppc);
-                  setState(() {
-                    dppCorrigida = dppc;
-                    usarCorrigida = true;
-                  });
-                  Navigator.of(ctx).pop();
-                }
-              },
-              child: const Text('Aplicar'),
-            ),
-          ],
+                      }
+                    }
+                  },
+                  child: const Text('Aplicar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -233,7 +313,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remover correção'),
-        content: const Text('Tem certeza que deseja remover a correção de IG pelo USG? A agenda voltará a usar a DUM/DPP original.'),
+        content: const Text(
+            'Tem certeza que deseja remover a correção de IG pelo USG? A agenda voltará a usar a DUM/DPP original.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -247,11 +328,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       ),
     );
     if (ok == true) {
-      await StorageService.clearDppCorrigida(widget.perfil.id);
-      setState(() {
-        dppCorrigida = null;
-        usarCorrigida = false;
-      });
+      try {
+        await SupabaseService.updateDppCorrigida(widget.perfil.id, null);
+        await StorageService.clearDppCorrigida(widget.perfil.id);
+        setState(() {
+          dppCorrigida = null;
+          usarCorrigida = false;
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -264,34 +354,44 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final bytes = byteData.buffer.asUint8List();
       final dir = await getTemporaryDirectory();
       final path = '${dir.path}/cronograma_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = await XFile.fromData(bytes, name: 'cronograma.png', mimeType: 'image/png').saveTo(path);
+      await XFile.fromData(bytes, name: 'cronograma.png', mimeType: 'image/png').saveTo(path);
       await Share.shareXFiles([XFile(path)], text: 'Cronograma de exames');
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.perfil.nome)),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final info = GestacaoService.calcular(dum: widget.perfil.dum, dpp: widget.perfil.dpp);
     final infoCorr = dppCorrigida != null
         ? GestacaoService.calcular(dum: null, dpp: dppCorrigida)
         : null;
     final hoje = DateUtils.dateOnly(DateTime.now());
-    final templates = AppConfig.templates();
 
     List<Widget> itens = [];
-    int total = templates.length;
-    int cPend = 0;
-    int cAgend = 0;
-    int cReal = 0;
-    for (final t in templates) {
-      final st = status[t.id] ?? 'pendente';
-      if (st == 'pendente') cPend++;
-      if (st == 'agendado') cAgend++;
-      if (st == 'realizado') cReal++;
-    }
-    final baseOriginal = widget.perfil.dum ?? (widget.perfil.dpp != null ? widget.perfil.dpp!.subtract(const Duration(days: 280)) : hoje);
-    final base = usarCorrigida && dppCorrigida != null ? dppCorrigida!.subtract(const Duration(days: 280)) : baseOriginal;
-    final reminders = ReminderService.gerar(base, templates).where((r) => r.quando.difference(hoje).inDays <= 60).toList();
+    int total = exames.length;
+    int cPend = exames.where((e) => e.status == 'pendente').length;
+    int cAgend = exames.where((e) => e.status == 'agendado').length;
+    int cReal = exames.where((e) => e.status == 'realizado').length;
+
+    final baseOriginal = widget.perfil.dum ??
+        (widget.perfil.dpp != null
+            ? widget.perfil.dpp!.subtract(const Duration(days: 280))
+            : hoje);
+    final base = usarCorrigida && dppCorrigida != null
+        ? dppCorrigida!.subtract(const Duration(days: 280))
+        : baseOriginal;
+
+    // Carregar templates para os lembretes
+    final templates = AppConfig.templates();
+    final reminders =
+        ReminderService.gerar(base, templates).where((r) => r.quando.difference(hoje).inDays <= 60).toList();
 
     if (reminders.isNotEmpty) {
       itens.add(Card(
@@ -304,7 +404,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               const SizedBox(height: 8),
               ...reminders.take(5).map((r) => Row(
                     children: [
-                      Expanded(child: Text('${r.tipo} • ${r.titulo} • ${GestacaoService.formatDate(r.quando)}')),
+                      Expanded(
+                          child: Text(
+                              '${r.tipo} • ${r.titulo} • ${GestacaoService.formatDate(r.quando)}')),
                     ],
                   )),
             ],
@@ -349,24 +451,40 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ],
       ),
     ));
-    for (final t in templates) {
-      final baseOriginal = widget.perfil.dum ?? (widget.perfil.dpp != null ? widget.perfil.dpp!.subtract(const Duration(days: 280)) : hoje);
-      final base = usarCorrigida && dppCorrigida != null ? dppCorrigida!.subtract(const Duration(days: 280)) : baseOriginal;
-      final inicio = GestacaoService.addSemanas(base, t.inicioSemana);
-      final fim = GestacaoService.addSemanas(base, t.fimSemana);
-      final semanaAlvo = t.inicioSemana;
-      var mensagem = 'Olá, sou ${widget.perfil.nome} [ID: ${widget.perfil.id}]. Gostaria de agendar o ${t.nome}, previsto para a minha ${semanaAlvo}ª semana.';
-      final st = status[t.id] ?? 'pendente';
-      final ativa = hoje.isAfter(inicio.subtract(const Duration(days: 1))) && hoje.isBefore(fim.add(const Duration(days: 1)));
-      final destaque = ativa && st == 'pendente';
-      final agd = agendadoDatas[t.id];
-      final rzd = realizadoDatas[t.id];
-      if (agd != null) {
-        mensagem = '$mensagem Preferencialmente para o dia ${GestacaoService.formatDate(agd)}.';
+
+    // Filtrar exames
+    final examesFiltrados = filtro == 'todos'
+        ? exames
+        : exames.where((e) => e.status == filtro).toList();
+
+    for (final exame in examesFiltrados) {
+      final semanaAlvo = exame.semanaAlvo ?? 0;
+      final inicio = exame.dataPrevista ?? hoje;
+      
+      // Encontrar template correspondente para obter fimSemana
+      final template = templates.firstWhere(
+        (t) => t.id == exame.tipo,
+        orElse: () => ExameTemplate(
+          id: exame.tipo,
+          nome: exame.nome,
+          descricao: '',
+          inicioSemana: semanaAlvo,
+          fimSemana: semanaAlvo + 2,
+        ),
+      );
+      final fim = GestacaoService.addSemanas(base, template.fimSemana);
+      
+      var mensagem =
+          'Olá, sou ${widget.perfil.nome} [ID: ${widget.perfil.id}]. Gostaria de agendar o ${exame.nome}, previsto para a minha ${semanaAlvo}ª semana.';
+      
+      final ativa = hoje.isAfter(inicio.subtract(const Duration(days: 1))) &&
+          hoje.isBefore(fim.add(const Duration(days: 1)));
+      final destaque = ativa && exame.status == 'pendente';
+      
+      if (exame.agendadoPara != null) {
+        mensagem = '$mensagem Preferencialmente para o dia ${GestacaoService.formatDate(exame.agendadoPara!)}';
       }
-      if (filtro != 'todos' && st != filtro) {
-        continue;
-      }
+
       itens.add(Card(
         shape: ativa
             ? RoundedRectangleBorder(
@@ -377,7 +495,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
-          color: flashId == t.id ? Colors.yellow.shade50 : null,
+          color: flashId == exame.id ? Colors.yellow.shade50 : null,
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +503,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(t.nome, style: Theme.of(context).textTheme.titleMedium),
+                    child: Text(exame.nome, style: Theme.of(context).textTheme.titleMedium),
                   ),
                   Chip(
                     label: Text('Alvo: ${semanaAlvo}ª'),
@@ -399,7 +517,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(t.descricao),
+              Text(template.descricao),
               if (ativa) ...[
                 const SizedBox(height: 6),
                 Row(
@@ -409,7 +527,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     Text('Janela ativa', style: TextStyle(color: Colors.green.shade600)),
                   ],
                 ),
-                if (st == 'pendente') ...[
+                if (exame.status == 'pendente') ...[
                   const SizedBox(height: 6),
                   Chip(
                     label: const Text('Agende agora'),
@@ -419,23 +537,33 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ],
               ],
               const SizedBox(height: 6),
-              Text('Janela ideal: ${t.inicioSemana}–${t.fimSemana} semanas'),
+              Text('Janela ideal: ${template.inicioSemana}–${template.fimSemana} semanas'),
               Text('Estimativa: ${GestacaoService.formatDate(inicio)} a ${GestacaoService.formatDate(fim)}'),
-              if (st == 'agendado') ...[
+              if (exame.status == 'agendado') ...[
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Expanded(child: Text('Agendado para: ${agd != null ? GestacaoService.formatDate(agd) : 'definir data'}')),
-                    ElevatedButton(onPressed: () => _pickAgendado(t.id), child: const Text('Definir data')),
+                    Expanded(
+                        child: Text(
+                            'Agendado para: ${exame.agendadoPara != null ? GestacaoService.formatDate(exame.agendadoPara!) : 'definir data'}')),
+                    ElevatedButton(
+                      onPressed: () => _pickAgendado(exame),
+                      child: const Text('Definir data'),
+                    ),
                   ],
                 ),
               ],
-              if (st == 'realizado') ...[
+              if (exame.status == 'realizado') ...[
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Expanded(child: Text('Realizado em: ${rzd != null ? GestacaoService.formatDate(rzd) : 'definir data'}')),
-                    ElevatedButton(onPressed: () => _pickRealizado(t.id), child: const Text('Definir data')),
+                    Expanded(
+                        child: Text(
+                            'Realizado em: ${exame.realizadoEm != null ? GestacaoService.formatDate(exame.realizadoEm!) : 'definir data'}')),
+                    ElevatedButton(
+                      onPressed: () => _pickRealizado(exame),
+                      child: const Text('Definir data'),
+                    ),
                   ],
                 ),
               ],
@@ -445,33 +573,37 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 children: [
                   ChoiceChip(
                     label: const Text('Pendente'),
-                    selected: st == 'pendente',
+                    selected: exame.status == 'pendente',
                     backgroundColor: _bgColor('pendente'),
                     selectedColor: _selColor('pendente'),
-                    onSelected: (_) => _setStatus(t.id, 'pendente'),
+                    onSelected: (_) => _setStatus(exame, 'pendente'),
                   ),
                   ChoiceChip(
                     label: const Text('Agendado'),
-                    selected: st == 'agendado',
+                    selected: exame.status == 'agendado',
                     backgroundColor: _bgColor('agendado'),
                     selectedColor: _selColor('agendado'),
-                    onSelected: (_) => _setStatus(t.id, 'agendado'),
+                    onSelected: (_) => _setStatus(exame, 'agendado'),
                   ),
                   ChoiceChip(
                     label: const Text('Realizado'),
-                    selected: st == 'realizado',
+                    selected: exame.status == 'realizado',
                     backgroundColor: _bgColor('realizado'),
                     selectedColor: _selColor('realizado'),
-                    onSelected: (_) => _setStatus(t.id, 'realizado'),
+                    onSelected: (_) => _setStatus(exame, 'realizado'),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              if (st != 'realizado')
+              if (exame.status != 'realizado')
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
-                    style: destaque ? ElevatedButton.styleFrom(backgroundColor: Colors.green.shade500, foregroundColor: Colors.white) : null,
+                    style: destaque
+                        ? ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade500,
+                            foregroundColor: Colors.white)
+                        : null,
                     onPressed: () => _abrirWhatsApp(mensagem),
                     child: const Text('Agendar no WhatsApp'),
                   ),
@@ -528,7 +660,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Configurações',
-            onPressed: () => Navigator.of(context).pushNamed('/settings', arguments: widget.perfil.id),
+            onPressed: () =>
+                Navigator.of(context).pushNamed('/settings', arguments: widget.perfil.id),
           ),
         ],
       ),

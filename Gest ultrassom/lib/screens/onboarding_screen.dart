@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/perfil.dart';
 import '../services/gestacao_service.dart';
 import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
+import '../config.dart';
 import 'schedule_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -77,7 +79,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void continuar() {
+  Future<void> continuar() async {
     final nome = nomeController.text.trim();
     if (nome.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Informe seu nome')));
@@ -91,14 +93,78 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Informe sua DPP')));
       return;
     }
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
-    final perfil = PerfilGestacional(nome: nome, id: id, dum: modo == 0 ? dum : null, dpp: modo == 1 ? dpp : null);
-    final info = GestacaoService.calcular(dum: perfil.dum, dpp: perfil.dpp);
-    StorageService.savePerfil(perfil);
-    Navigator.of(context).pushNamed(
-      ScheduleScreen.routeName,
-      arguments: perfil,
+
+    // Mostrar loading
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      // Calcular DPP se necessário
+      final info = GestacaoService.calcular(
+        dum: modo == 0 ? dum : null,
+        dpp: modo == 1 ? dpp : null,
+      );
+
+      // Criar perfil no Supabase
+      final perfilData = {
+        'nome': nome,
+        'dum': modo == 0 ? dum?.toIso8601String().split('T')[0] : null,
+        'dpp': info.dpp.toIso8601String().split('T')[0],
+      };
+
+      final perfilId = await SupabaseService.savePerfil(perfilData);
+
+      // Criar exames automaticamente
+      final templates = AppConfig.templates();
+      final baseDate = modo == 0 ? dum! : info.dpp.subtract(const Duration(days: 280));
+      
+      await SupabaseService.createExamesFromTemplates(
+        perfilId: perfilId,
+        baseDate: baseDate,
+        templates: templates.map((t) => {
+          'id': t.id,
+          'nome': t.nome,
+          'inicioSemana': t.inicioSemana,
+        }).toList(),
+      );
+
+      // Criar perfil local para navegação
+      final perfil = PerfilGestacional(
+        nome: nome,
+        id: perfilId,
+        dum: modo == 0 ? dum : null,
+        dpp: info.dpp,
+      );
+
+      // Salvar localmente também (para cache)
+      await StorageService.savePerfil(perfil);
+
+      // Fechar loading
+      navigator.pop();
+
+      // Navegar para o dashboard
+      navigator.pushNamed(
+        ScheduleScreen.routeName,
+        arguments: perfil,
+      );
+
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Perfil criado com sucesso!')),
+      );
+    } catch (e) {
+      // Fechar loading
+      navigator.pop();
+      
+      messenger.showSnackBar(
+        SnackBar(content: Text('Erro ao criar perfil: $e')),
+      );
+    }
   }
 
   @override

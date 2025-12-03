@@ -9,8 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL', defaultValue: ''),
-    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: ''),
+    url: 'https://bsoehtjnmsrmdppigczs.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzb2VodGpubXNybWRwcGlnY3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NDMyMDksImV4cCI6MjA4MDExOTIwOX0.ly4okZZ55xXXokJ1c1ReV4KdP_VzaRb_GpFYvxBNLOs',
   );
   NotificationService.init();
   runApp(const GestUltrassomApp());
