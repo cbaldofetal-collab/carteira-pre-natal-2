@@ -12,7 +12,7 @@ void main() async {
     url: 'https://bsoehtjnmsrmdppigczs.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzb2VodGpubXNybWRwcGlnY3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NDMyMDksImV4cCI6MjA4MDExOTIwOX0.ly4okZZ55xXXokJ1c1ReV4KdP_VzaRb_GpFYvxBNLOs',
   );
-  NotificationService.init();
+  // NotificationService.init(); // Temporariamente desabilitado para build web
   runApp(const GestUltrassomApp());
 }
 
