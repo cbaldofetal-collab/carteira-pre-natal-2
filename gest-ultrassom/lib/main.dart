@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/schedule_screen.dart';
 import 'models/perfil.dart';
-import 'services/notification_service.dart';
 import 'screens/settings_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
