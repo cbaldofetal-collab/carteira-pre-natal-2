@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../services/notification_service.dart';
 import '../services/storage_service.dart';
-import '../config.dart';
 import '../services/supabase_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,118 +11,85 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool consent = false;
-  String? token;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final c = await StorageService.getConsentNotifications();
-    final t = await NotificationService.getToken();
-    setState(() {
-      consent = c;
-      token = t;
-    });
-  }
-
-  Future<void> _setConsent(bool v) async {
-    await StorageService.setConsentNotifications(v);
-    setState(() => consent = v);
-    if (v) {
-      await NotificationService.init();
-      final t = await NotificationService.getToken();
-      setState(() => token = t);
-    }
-  }
-
-  Future<void> _copyToken() async {
-    if (token == null) return;
-    await Clipboard.setData(ClipboardData(text: token!));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Token copiado')));
-  }
-
-  Future<void> _clearAll() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Limpar dados'),
-        content: const Text('Tem certeza que deseja limpar dados locais deste perfil?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Limpar')),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await StorageService.clearPerfil(widget.perfilId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados limpos')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações')),
+      appBar: AppBar(
+        title: const Text('Configurações'),
+        backgroundColor: Colors.green,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Row(
-            children: [
-              Chip(
-                label: Text(token != null ? 'Push: Ativo' : 'Push: Inativo'),
-                backgroundColor: token != null ? Colors.green.shade100 : Colors.grey.shade200,
-              ),
-            ],
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('Gest Ultrassom'),
+            subtitle: Text('Agendamento Inteligente de Exames Pré-Natais'),
           ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Receber notificações'),
-            value: consent,
-            onChanged: _setConsent,
-          ),
+          const Divider(),
           ListTile(
-            title: const Text('Backend'),
-            subtitle: Text(AppConfig.backendBaseUrl.isEmpty ? 'Mesmo domínio (web)' : AppConfig.backendBaseUrl),
+            leading: const Icon(Icons.cloud),
+            title: const Text('Testar Supabase'),
             trailing: ElevatedButton(
               onPressed: () async {
-                final ok = await NotificationService.pingBackend();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Backend OK' : 'Backend indisponível')));
+                try {
+                  final ok = await SupabaseService.health();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? '✓ Supabase OK' : '✗ Supabase indisponível'),
+                      backgroundColor: ok ? Colors.green : Colors.red,
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erro: $e')),
+                  );
+                }
               },
               child: const Text('Testar'),
             ),
           ),
+          const Divider(),
           ListTile(
-            title: const Text('Supabase'),
+            leading: const Icon(Icons.delete_forever),
+            title: const Text('Limpar dados locais'),
+            subtitle: const Text('Remove dados salvos neste dispositivo'),
             trailing: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
-                final ok = await SupabaseService.health();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Supabase OK' : 'Supabase indisponível')));
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Limpar dados'),
+                    content: const Text(
+                      'Tem certeza que deseja limpar os dados locais deste perfil?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancelar'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Limpar'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok == true) {
+                  await StorageService.clearPerfil(widget.perfilId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Dados locais limpos')),
+                  );
+                }
               },
-              child: const Text('Testar'),
+              child: const Text('Limpar'),
             ),
           ),
-          ListTile(
-            title: const Text('Token FCM'),
-            subtitle: Text(token ?? 'vazio'),
-            trailing: Wrap(
-              spacing: 8,
-              children: [
-                ElevatedButton(onPressed: () async { final t = await NotificationService.fetchToken(); setState(() => token = t); }, child: const Text('Atualizar')),
-                ElevatedButton(onPressed: _copyToken, child: const Text('Copiar')),
-                ElevatedButton(onPressed: () async { final ok = await NotificationService.sendTokenToBackend(widget.perfilId); if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Token enviado ao backend' : 'Falha ao enviar token'))); }, child: const Text('Enviar')),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(onPressed: _clearAll, child: const Text('Limpar dados locais')),
         ],
       ),
     );
