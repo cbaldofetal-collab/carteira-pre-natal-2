@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/perfil.dart';
 import '../models/exame.dart';
@@ -352,10 +351,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) return;
       final bytes = byteData.buffer.asUint8List();
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/cronograma_${DateTime.now().millisecondsSinceEpoch}.png';
-      await XFile.fromData(bytes, name: 'cronograma.png', mimeType: 'image/png').saveTo(path);
-      await Share.shareXFiles([XFile(path)], text: 'Cronograma de exames');
+      
+      // Na web, não usamos path_provider
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, name: 'cronograma.png', mimeType: 'image/png')],
+        text: 'Cronograma de exames',
+      );
     } catch (_) {}
   }
 
